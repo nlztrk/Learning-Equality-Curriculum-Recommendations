@@ -1,0 +1,17 @@
+{
+  "unsupervised_model": {
+    "base_name": "sentence-transformers/all-MiniLM-L6-v2",
+    "save_name": "trained_models/unsupervised/all-MiniLM-L6-v2",
+    "seq_len": 128,
+    "epochs": 2,
+    "batch_size": 300,
+    "warmup_ratio": 0.03,
+    "top_n": 50,
+    "seed": 42
+  },
+  "supervised_model": {
+    "base_name": "trained_models/unsupervised/all-MiniLM-L6-v2",
+    "save_name": "trained_models/supervised/all-MiniLM-L6-v2",
+    "threshold": 0.08
+  }
+}
