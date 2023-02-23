@@ -3,11 +3,14 @@ from tqdm import tqdm
 import gc
 
 from sentence_transformers import SentenceTransformer, models, InputExample, losses
+from sentence_transformers.util import cos_sim
+
 from cuml.neighbors import NearestNeighbors
 import cupy as cp
 import torch
 
 from .utils import generate_topic_tree
+
 
 def get_neighbors(topic_df,
                   content_df,
@@ -18,14 +21,15 @@ def get_neighbors(topic_df,
 
     # Predict
     topics_preds = model.encode(topic_df["model_input"],
-                                show_progress_bar=True)
+                                show_progress_bar=True,
+                                convert_to_tensor=True)
+    topics_preds_gpu = cp.asarray(topics_preds)
+
     content_preds = model.encode(content_df["model_input"],
                                  show_progress_bar=True,
+                                 convert_to_tensor=True,
                                  batch_size=100)
-
-    # Transfer predictions to gpu
-    topics_preds_gpu = cp.array(topics_preds)
-    content_preds_gpu = cp.array(content_preds)
+    content_preds_gpu = cp.asarray(content_preds)
 
     # Release memory
     torch.cuda.empty_cache()
@@ -46,7 +50,7 @@ def get_neighbors(topic_df,
     topic_df['predictions'] = predictions
 
     # Release memory
-    del topics_preds_gpu, content_preds_gpu, neighbors_model, predictions, indices, model
+    del topics_preds, content_preds, topics_preds_gpu, content_preds_gpu, neighbors_model, predictions, indices, model
     gc.collect()
     torch.cuda.empty_cache()
     gc.collect()
@@ -98,6 +102,7 @@ def build_training_set(topic_df,
 
     return train
 
+
 def read_data(data_path,
               config_obj,
               read_mode="all"):
@@ -114,11 +119,13 @@ def read_data(data_path,
         topics = topics[topics.id.isin(splits[splits.fold == read_mode].id)].reset_index(drop=True)
 
     topics = topics.merge(topic_trees, how="left", on="id")
+    del topic_trees
+    gc.collect()
 
-    topics = generate_topic_model_input(input_df=topics,
-                                        seq_len=config_obj["unsupervised_model"]["seq_len"])
-    content = generate_content_model_input(input_df=content,
-                                           seq_len=config_obj["unsupervised_model"]["seq_len"])
+    generate_topic_model_input(input_df=topics,
+                               seq_len=config_obj["unsupervised_model"]["seq_len"])
+    generate_content_model_input(input_df=content,
+                                 seq_len=config_obj["unsupervised_model"]["seq_len"])
 
     # Sort by title length to make inference faster
     topics['length'] = topics['title'].apply(lambda x: len(x))
@@ -127,9 +134,9 @@ def read_data(data_path,
     content.sort_values('length', inplace=True)
 
     # Drop cols
-    topics.drop(['description', 'channel', 'category', 'level', 'language', 'parent', 'has_content', 'length'], axis=1,
+    topics.drop(['length'], axis=1,
                 inplace=True)
-    content.drop(['description', 'kind', 'language', 'text', 'copyright_holder', 'license', 'length'], axis=1,
+    content.drop(['length'], axis=1,
                  inplace=True)
     # Reset index
     topics.reset_index(drop=True, inplace=True)
@@ -143,7 +150,6 @@ def read_data(data_path,
 
     return topics, content, correlations
 
-
 def generate_topic_model_input(input_df,
                                seq_len=128):
     """
@@ -151,18 +157,19 @@ def generate_topic_model_input(input_df,
     :return: Dataframe with additional model input column
     """
 
-    input_df = input_df.fillna("")
-    input_df = input_df.astype(str)
+    input_df.fillna("", inplace=True)
 
-    whole_input = "" + input_df["language"] + \
-                  " " + input_df["level"] + \
-                  " [SEP] " + input_df["title"] +\
-                  " " + input_df["description"] + \
-                  " " + input_df["topic_tree"]
+    input_df["model_input"] = ("[TOPIC_LANG] " + input_df["language"].astype(str) +
+                  " [TOPIC_LVL] " + input_df["level"].astype(str) +
+                  " [TOPIC_TITLE] " + input_df["title"].astype(str) +
+                  " [TOPIC_TREE] " + input_df["topic_tree"].astype(str) +
+                  " [TOPIC_DESC] " + input_df["description"].astype(str)).str.lower()#.str.split().apply(lambda x: " ".join(x[:seq_len]))
 
-    input_df["model_input"] = whole_input.str.split().apply(lambda x: " ".join(x[:seq_len]))
-
-    return input_df
+    input_df.drop(['description', 'channel', 'category',
+                   'level', 'language', 'parent', 'has_content'],
+                  axis=1,
+                  inplace=True)
+    gc.collect()
 
 
 def generate_content_model_input(input_df,
@@ -172,13 +179,15 @@ def generate_content_model_input(input_df,
     :return: Dataframe with additional model input column
     """
 
-    input_df = input_df.fillna("")
-    input_df = input_df.astype(str)
+    input_df.fillna("", inplace=True)
 
-    whole_input = "" + input_df["title"] +\
-                  " " + input_df["description"] + \
-                  " " + input_df["text"]
+    input_df["model_input"] = ("[CNTNT_LANG] " + input_df["language"].astype(str) +
+                  " [CNTNT_KIND] " + input_df["kind"].astype(str) +
+                  " [CNTNT_TITLE] " + input_df["title"].astype(str) +
+                  " [CNTNT_DESC] " + input_df["description"].astype(str) +
+                  " [CNTNT_TEXT] " + input_df["text"].astype(str)).apply(lambda x: " ".join(x.split()[:512])).str.lower()
 
-    input_df["model_input"] = whole_input.str.split().apply(lambda x: " ".join(x[:seq_len]))
-
-    return input_df
+    input_df.drop(['description', 'kind', 'language', 'text', 'copyright_holder', 'license'],
+                  axis=1,
+                  inplace=True)
+    gc.collect()

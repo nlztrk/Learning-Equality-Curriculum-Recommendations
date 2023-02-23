@@ -1,7 +1,21 @@
 import json
 import pandas as pd
 from tqdm import tqdm
+import random
+import os
+import numpy as np
+import torch
 
+# =========================================================================================
+# Seed everything for deterministic results
+# =========================================================================================
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
 
 def generate_topic_tree(input_topic_df):
     df = pd.DataFrame()
@@ -45,4 +59,6 @@ def generate_topic_tree(input_topic_df):
 
 def read_config():
     f = open('config.json')
-    return json.load(f)
+    config = json.load(f)
+    config["supervised_model"]["betas"] = eval(config["supervised_model"]["betas"])
+    return config
