@@ -159,14 +159,14 @@ def generate_topic_model_input(input_df,
 
     input_df.fillna("", inplace=True)
 
-    input_df["model_input"] = ("[TOPIC_LANG] " + input_df["language"].astype(str) +
-                  " [TOPIC_LVL] " + input_df["level"].astype(str) +
-                  " [TOPIC_TITLE] " + input_df["title"].astype(str) +
-                  " [TOPIC_TREE] " + input_df["topic_tree"].astype(str) +
-                  " [TOPIC_DESC] " + input_df["description"].astype(str)).str.lower()#.str.split().apply(lambda x: " ".join(x[:seq_len]))
+    input_df["model_input"] = ("[<[topic_lang]>] " + input_df["language"].astype(str) +
+                  # " [<[topic_lvl]>] " + input_df["level"].astype(str) +
+                  " [<[topic_title]>] " + input_df["title"].astype(str) +
+                  " [<[topic_tree]>] " + input_df["topic_tree"].astype(str) +
+                  " [<[topic_desc]>] " + input_df["description"].astype(str)).str.lower()#.str.split().apply(lambda x: " ".join(x[:seq_len]))
 
     input_df.drop(['description', 'channel', 'category',
-                   'level', 'language', 'parent', 'has_content'],
+                   'level', 'parent', 'has_content'],
                   axis=1,
                   inplace=True)
     gc.collect()
@@ -181,13 +181,13 @@ def generate_content_model_input(input_df,
 
     input_df.fillna("", inplace=True)
 
-    input_df["model_input"] = ("[CNTNT_LANG] " + input_df["language"].astype(str) +
-                  " [CNTNT_KIND] " + input_df["kind"].astype(str) +
-                  " [CNTNT_TITLE] " + input_df["title"].astype(str) +
-                  " [CNTNT_DESC] " + input_df["description"].astype(str) +
-                  " [CNTNT_TEXT] " + input_df["text"].astype(str)).apply(lambda x: " ".join(x.split()[:512])).str.lower()
+    input_df["model_input"] = ("[<[cntnt_lang]>] " + input_df["language"].astype(str) +
+                  " [<[cntnt_kind]>] " + input_df["kind"].astype(str) +
+                  " [<[cntnt_title]>] " + input_df["title"].astype(str) +
+                  " [<[cntnt_desc]>] " + input_df["description"].astype(str) +
+                  " [<[cntnt_text]>] " + input_df["text"].astype(str)).apply(lambda x: " ".join(x.split()[:512])).str.lower()
 
-    input_df.drop(['description', 'kind', 'language', 'text', 'copyright_holder', 'license'],
+    input_df.drop(['description', 'kind', 'text', 'copyright_holder', 'license'],
                   axis=1,
                   inplace=True)
     gc.collect()

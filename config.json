@@ -1,17 +1,30 @@
 {
   "unsupervised_model": {
-    "base_name": "sentence-transformers/all-MiniLM-L6-v2",
-    "save_name": "trained_models/unsupervised/all-MiniLM-L6-v2",
+    "base_name": "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
+    "save_name": "trained_models/unsupervised/paraphrase-multilingual-mpnet-base-v2",
     "seq_len": 128,
-    "epochs": 2,
-    "batch_size": 300,
+    "epochs": 30,
+    "batch_size": 64,
     "warmup_ratio": 0.03,
     "top_n": 50,
     "seed": 42
   },
   "supervised_model": {
-    "base_name": "trained_models/unsupervised/all-MiniLM-L6-v2",
-    "save_name": "trained_models/supervised/all-MiniLM-L6-v2",
-    "threshold": 0.08
+    "base_name": "trained_models/unsupervised/paraphrase-multilingual-mpnet-base-v2",
+    "save_name": "trained_models/supervised/paraphrase-multilingual-mpnet-base-v2",
+    "threshold": 0.0475,
+    "seq_len": 128,
+    "epochs": 40,
+    "batch_size": 128,
+    "warmup_ratio": 0.1,
+    "encoder_lr": 1e-5,
+    "decoder_lr": 1e-4,
+    "eps": 1e-6,
+    "betas": "(0.9, 0.999)",
+    "weight_decay": 0.01,
+    "max_grad_norm": 0.012,
+    "seed": 42,
+    "print_freq": 500,
+    "num_workers": 0
   }
 }
