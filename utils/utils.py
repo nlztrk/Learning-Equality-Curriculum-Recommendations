@@ -55,10 +55,17 @@ def generate_topic_tree(input_topic_df):
                 channel_df = channel_df.drop(['topic_tree_x', 'topic_tree_y'], axis=1)
 
         df = pd.concat([df, channel_df], ignore_index=True)
-    return df[["id", "topic_tree"]]
+
+    df = df.merge(df.groupby("channel")["level"].max().rename("max_level_of_channel").reset_index(),
+                  how="left",
+                  on="channel")
+
+    df["reverse_level"] = df["max_level_of_channel"] - df["level"]
+
+    return df[["id", "topic_tree", "reverse_level"]]
 
 def read_config():
     f = open('config.json')
     config = json.load(f)
-    config["supervised_model"]["betas"] = eval(config["supervised_model"]["betas"])
+    # config["supervised_model"]["betas"] = eval(config["supervised_model"]["betas"])
     return config

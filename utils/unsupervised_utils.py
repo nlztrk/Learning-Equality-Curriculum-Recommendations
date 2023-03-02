@@ -108,6 +108,7 @@ def read_data(data_path,
               read_mode="all"):
     topics = pd.read_csv(data_path + 'topics.csv')
     content = pd.read_csv(data_path + 'content.csv')
+
     if read_mode != "all":
         correlations = pd.read_csv(data_path + 'correlations.csv')
     else:
@@ -122,10 +123,10 @@ def read_data(data_path,
     del topic_trees
     gc.collect()
 
-    generate_topic_model_input(input_df=topics,
-                               seq_len=config_obj["unsupervised_model"]["seq_len"])
-    generate_content_model_input(input_df=content,
-                                 seq_len=config_obj["unsupervised_model"]["seq_len"])
+    topic_tokens = generate_topic_model_input(input_df=topics)
+    content_tokens = generate_content_model_input(input_df=content)
+
+    unq_tokens = set(topic_tokens + content_tokens + ["nan"])
 
     # Sort by title length to make inference faster
     topics['length'] = topics['title'].apply(lambda x: len(x))
@@ -148,22 +149,58 @@ def read_data(data_path,
     if read_mode != "all":
         print(f"correlations.shape: {correlations.shape}")
 
-    return topics, content, correlations
+    return topics, content, correlations, unq_tokens
 
-def generate_topic_model_input(input_df,
-                               seq_len=128):
+
+def generate_token_features(input_df,
+                            token_features):
+    """
+    :param input_df: Input topic dataframe
+    :param token_features: Target columns for "unique value token encoding"
+    :return: Tuple of (Dataframe with additional model input column, Unique Special Tokens)
+    """
+    token_feature_set = None
+    special_tokens = []
+
+    for token_feature in token_features:
+
+        token_feature_str = "[<[" + token_feature + "_" +\
+                            input_df[token_feature].astype(str) + "]>]"
+        special_tokens += set(token_feature_str.values)
+
+        if not isinstance(token_feature_set, pd.Series):
+            token_feature_set = token_feature_str
+        else:
+            token_feature_set += " " + token_feature_str
+
+    return token_feature_set, special_tokens
+
+
+def generate_topic_model_input(input_df):
     """
     :param input_df: Input topic dataframe
     :return: Dataframe with additional model input column
     """
 
-    input_df.fillna("", inplace=True)
+    input_df.fillna("nan", inplace=True)
 
-    input_df["model_input"] = ("[<[topic_lang]>] " + input_df["language"].astype(str) +
-                  # " [<[topic_lvl]>] " + input_df["level"].astype(str) +
-                  " [<[topic_title]>] " + input_df["title"].astype(str) +
-                  " [<[topic_tree]>] " + input_df["topic_tree"].astype(str) +
-                  " [<[topic_desc]>] " + input_df["description"].astype(str)).str.lower()#.str.split().apply(lambda x: " ".join(x[:seq_len]))
+    token_features = [
+        "language",
+        # "level",
+        # "reverse_level"
+    ]
+    token_feature_text, special_tokens = generate_token_features(input_df=input_df,
+                                                                 token_features=token_features)
+
+
+    input_df["model_input"] = (
+            token_feature_text +
+            " [<[topic_title]>] " + input_df["title"].astype(str) +
+            " [<[topic_tree]>] " + input_df["topic_tree"].astype(str) +
+            " [<[topic_desc]>] " + input_df["description"].astype(str)
+    ).str.lower()#.str.split().apply(lambda x: " ".join(x[:seq_len]))
+
+    del token_feature_text
 
     input_df.drop(['description', 'channel', 'category',
                    'level', 'parent', 'has_content'],
@@ -171,23 +208,33 @@ def generate_topic_model_input(input_df,
                   inplace=True)
     gc.collect()
 
+    return special_tokens
 
-def generate_content_model_input(input_df,
-                                 seq_len=128):
+
+def generate_content_model_input(input_df):
     """
     :param input_df: Input content dataframe
     :return: Dataframe with additional model input column
     """
 
-    input_df.fillna("", inplace=True)
+    input_df.fillna("nan", inplace=True)
 
-    input_df["model_input"] = ("[<[cntnt_lang]>] " + input_df["language"].astype(str) +
-                  " [<[cntnt_kind]>] " + input_df["kind"].astype(str) +
-                  " [<[cntnt_title]>] " + input_df["title"].astype(str) +
-                  " [<[cntnt_desc]>] " + input_df["description"].astype(str) +
-                  " [<[cntnt_text]>] " + input_df["text"].astype(str)).apply(lambda x: " ".join(x.split()[:512])).str.lower()
+    token_features = ["language", "kind"]
+    token_feature_text, special_tokens = generate_token_features(input_df=input_df,
+                                                                 token_features=token_features)
+
+    input_df["model_input"] = (
+            token_feature_text +
+            " [<[cntnt_title]>] " + input_df["title"].astype(str) +
+            " [<[cntnt_desc]>] " + input_df["description"].astype(str) +
+            " [<[cntnt_text]>] " + input_df["text"].astype(str)
+    ).apply(lambda x: " ".join(x.split()[:512])).str.lower()
+
+    del token_feature_text
 
     input_df.drop(['description', 'kind', 'text', 'copyright_holder', 'license'],
                   axis=1,
                   inplace=True)
     gc.collect()
+
+    return special_tokens
