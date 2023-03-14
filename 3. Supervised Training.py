@@ -25,15 +25,12 @@ from sentence_transformers.readers import InputExample
 from sentence_transformers.cross_encoder.evaluation import CEBinaryClassificationEvaluator
 from torch.utils.data import DataLoader
 
-#import torch
-#torch.multiprocessing.set_start_method('spawn', force=True)
-
 # Custom libraries
-from utils.supervised_utils import read_data
+from utils.unsupervised_utils import read_data
 from utils.utils import read_config
 from utils.metrics import get_pos_score, get_f2_score
 
-os.environ["TOKENIZERS_PARALLELISM"]="true"
+os.environ["TOKENIZERS_PARALLELISM"]="false"
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"]="true"
 
 # %%
@@ -45,6 +42,7 @@ GENERATED_DATA_PATH = "./generated_files/"
 # %%
 train_df = pd.read_parquet(GENERATED_DATA_PATH + "unsupervised_train.parquet")
 test_df = pd.read_parquet(GENERATED_DATA_PATH + "unsupervised_test.parquet")
+
 correlation_df = pd.read_csv(DATA_PATH + "correlations.csv")
 
 # %%
@@ -83,7 +81,6 @@ model.fit(train_dataloader=train_dataloader,
           show_progress_bar=True,
           evaluator=evaluator,
           epochs=num_epochs,
-#           evaluation_steps=1000,
           warmup_steps=warmup_steps,
            save_best_model=True,
           output_path=config["supervised_model"]["save_name"],
@@ -108,7 +105,7 @@ test_df["pred_score"] = preds
 
 
 # %%
-for thr in np.arange(0., 0.15, 0.0025):
+for thr in np.arange(0., 0.3, 0.0025):
     preds_thr_df = test_df[test_df.pred_score >= thr].sort_values(by="pred_score",
                                                     ascending=False)[["topics_ids",
                                                                       "content_ids"]].\
@@ -123,4 +120,7 @@ for thr in np.arange(0., 0.15, 0.0025):
     print(f"Threshold: {thr} | Score: {f2score_for_threshold}")
 
 # %%
-# Threshold: 0.0125 | Score: 0.6267
+# Threshold: 0.0175 | Score: 0.6395 @100
+# Threshold: 0.0175 | Score: 0.6424 @75
+# Threshold: 0.0150 | Score: 0.6461 @50
+# Threshold: 0.0050 | Score: 0.6464 @25

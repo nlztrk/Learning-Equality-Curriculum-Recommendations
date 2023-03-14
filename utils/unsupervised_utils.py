@@ -3,7 +3,6 @@ from tqdm import tqdm
 import gc
 
 from sentence_transformers import SentenceTransformer, models, InputExample, losses
-from sentence_transformers.util import cos_sim
 
 from cuml.neighbors import NearestNeighbors
 import cupy as cp
